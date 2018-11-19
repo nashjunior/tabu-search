@@ -1,4 +1,4 @@
-import argparse, sys, platform, os, operator, collections
+import argparse, sys, platform, os, operator, collections,random,sys
 import numpy as np
 
 path = os.path.dirname(os.path.abspath(__file__))
@@ -15,7 +15,7 @@ def arguments():
 	parser = argparse.ArgumentParser(prog="Tabu search algorithm",usage='%(prog)s [options]')
 	parser.add_argument('--file','-f',type=str,required=True,help='Arquivo a ser inserido')
 	parser.add_argument('--maxiter','-mi',type=int,required=True,help='Quantidade de interacoes')
-	parser.add_argument('--maxlist','-ml',type=int,required=True,help='Tamanho maximo da lista')
+	parser.add_argument('--maxtabu','-mt',type=int,required=True,help='Quantidade de repeticoes proibidas')
 	parser.add_argument('--maxcandidate','-mc',type=int,required=True,help='Quantidade maxima de candidados')
 	args = parser.parse_args()
 	global path
@@ -23,20 +23,20 @@ def arguments():
 		path = path +r'\\'+args.file
 	elif platform.system() == "Linux":
 		path = path  + '/' + args.file
-	decode_file()
+	decode_file(args.maxiter,args.maxtabu,args.maxcandidate)
 
-def decode_file():
+def decode_file(maxiter,maxTabu,maxcandidate):
 	global path, name, comment, dimension, edge_weight_type, edge_weight_format,distances
 	with open(path,'r') as file:
 		name = file.readline().strip().split()[1]
 		type_file = file.readline().strip().split()[1]
-		comment = file.readline().strip().split()[1]
+		if name[0]=='g':
+			comment = file.readline().strip().split()[1]
 		dimension = file.readline().strip().split()[1]
 		edge_weight_type = file.readline().strip().split()[1]
 		edge_weight_format = file.readline().strip().split()[1]
 		if name[0] != 'g':
 			display_data_type = file.readline().strip().split()[1]
-			print(display_data_type)
 		file.readline()
 		values = file.readline()
 		while values!='EOF\n':
@@ -46,25 +46,30 @@ def decode_file():
 			else:
 				distances = list(map(int,values))
 			
-			if (edge_weight_format=="LOWER_DIAG_ROW"):
-				distances = list(flatten(distances))
+			#if (edge_weight_format=="LOWER_DIAG_ROW"):
+			distances = list(flatten(distances))
 			values = file.readline()
 
-		if edge_weight_format == "LOWER_DIAG_ROW":
-			while 0 in distances:
+		while 0 in distances:
 				distances.remove(0)
-			values = np.array(distances)
-			n = int(np.sqrt(len(values)*2))+1
+		values = np.array(distances)
+		n = int(np.sqrt(len(values)*2))+1
+		if edge_weight_format == "LOWER_DIAG_ROW":
 			idx = np.tril_indices(n, k=-1, m=n)
-			matrix = np.zeros((n,n)).astype(int)
-			matrix[idx] = values
-			print(matrix)
-			print("\n\n")
-			neighbours_dict = generate_neighbours(matrix)
-
-		first_solution,distance_of_first_solution = generate_first_solution(neighbours_dict,1)
-		print("First solution\ndistance:",distance_of_first_solution,"\n")
-		print(first_solution)
+		else:
+			idx = np.triu_indices(n, k=1, m=n)
+			
+		matrix = np.zeros((n,n)).astype(int)
+		matrix[idx] = values
+		neighbours_dict = generate_neighbours(matrix)
+		print(matrix)
+		print("\n\n")
+		first_solution = construct_initial_solution(neighbours_dict)
+		print("First solution nodes: ", first_solution)
+		cost = calculate_cost(neighbours_dict,first_solution)
+		print("Cost solution: ", cost,"\n\n")
+		tabu_search(neighbours_dict,first_solution,cost,maxiter,maxcandidate,maxTabu)
+		#first_solution = first_solution[:len(first_solution)-(len(first_solution)-maxcandidate)]
 
 def flatten(lis):
     for item in lis:
@@ -93,52 +98,116 @@ def generate_neighbours(matrix):
 					dict_of_neighbours[i].append([i,matrix[i][j]])
 	return dict_of_neighbours
 
-def generate_first_solution(neighbours_dict,node):
-	start_node = node
-	end_node = start_node
-	first_solution = []
-	visiting = start_node
-	distance_of_first_solution = 0
+def construct_initial_solution(neighbours_dict):
+	nodes_visted = list()
+	for key in neighbours_dict:
+		nodes_visted.append(key)
+	size=len(nodes_visted)
+	for index in range(size):
+		shuffleIndex = random.randrange(index,size)
+		nodes_visted[shuffleIndex], nodes_visted[index]= nodes_visted[index], nodes_visted[shuffleIndex]
+	return nodes_visted
 
-	while visiting not in first_solution:
-		minim = 10000
-		for k in neighbours_dict[visiting]:
-			if k[1] < minim and k[0] not in first_solution:
-				minim = k[1]
-				best_node=k[0]
-		first_solution.append(visiting)
-		distance_of_first_solution+=minim
-		visiting = best_node
-	first_solution.append(end_node)
-	position=0
-	for k in neighbours_dict[first_solution[-1]]:
-		if k[0]==start_node:
-			break
+def calculate_cost(matrix_cost,node_list):
+	distance_cost = 0
+	for index_node in range(len(node_list)):
+		if (index_node < len(node_list)-1):
+			if (node_list[index_node]>node_list[index_node+1]):
+				index = matrix_cost.get(node_list[index_node+1])
+				value = index[node_list[index_node]-1]
+				distance_cost+=value[1]
+			else:
+				index = matrix_cost.get(node_list[index_node])
+				value = index[node_list[index_node+1]-1]
+				distance_cost+=value[1]
+	return distance_cost
 
-	distance_of_first_solution += abs(neighbours_dict[first_solution[-2]][position][1]-10000)
-	return first_solution,distance_of_first_solution
+def isTabu(perm, tabuList):
+    result = False
+    size = len(perm)
+    for index, edge in enumerate(perm):
+        if index == size-1:
+            edge2 = perm[0]
+        else:
+            edge2 = perm[index+1]
+        if [edge, edge2] in tabuList:
+            result = True
+            break
+    return result  
 
-def find_neighborhood(solution,neighbours_dict):
-	neighbours_of_solution = []
-	for n in solution[1:-1]:
-		idx1 = solution.index(n)
-		for kn in solution[1:-1]:
-			idx2 = solution.index(kn)
-			if n == kn:
-				continue
-			_tmp = copy.deepcopy(solution)
-			_tmp[idx1]=kn
-			_tmp[idx2]=n
-			distance=0
-			for k in _tmp[:-1]:
-				next_node = _tmp[_tmp.index(k)+1]
-				for i in neighbours_dict[k]:
-					if i[0]==next_node:
-						distance+=i[1]
-			_tmp.append(distance)
-			if _tmp not in neighbours_of_solution:
-				neighbours_of_solution.append(_tmp)
-	index_of_last_item_in_the_list=len(neighbours_of_solution[0])-1
-	neighbours_of_solution.sort(key=lambda x:x [index_of_last_item_in_the_list])
+def stochasticTwoOptWithEdges(perm):
+    result = perm[:] # make a copy
+    #print("gere")
+    size = len(result)
+    # select indices of two random points in the tour
+    p1, p2 = random.randrange(0,size), random.randrange(0,size)
+    # do this so as not to overshoot tour boundaries
+    exclude = set([p1])
+    if p1 == 0:
+        exclude.add(size-1)
+    else:
+        exclude.add(p1-1)
+    
+    if p1 == size-1:
+        exclude.add(0)
+    else:
+        exclude.add(p1+1) 
+                       
+    while p2 in exclude:
+        p2 = random.randrange(0,size)
+
+    # to ensure we always have p1<p2        
+    if p2<p1:
+        p1, p2 = p2, p1
+     
+    # now reverse the tour segment between p1 and p2   
+    result[p1:p2] = reversed(result[p1:p2])
+    
+    return result, [[perm[p1-1],perm[p1]],[perm[p2-1],perm[p2]]]
+
+
+def generate_candidate(best,tabu_list,solution,neighbours_dict):
+	permutation, edges, result = None, None, {}
+	while permutation == None or isTabu(best["Permutation"], tabu_list):
+		permutation, edges = stochasticTwoOptWithEdges(best["Permutation"])
+	candidate ={}    
+	candidate["Permutation"] = permutation
+	test = candidate.get("Permutation")
+	candidate["Cost"] = calculate_cost(neighbours_dict,test)
+	result["Candidate"] = candidate
+	result["Edges"] = edges
+	return result
+
+def locateBestCandidate(candidates):
+    candidates.sort(key = lambda c: c["Candidate"]["Cost"])
+    best, edges = candidates[0]["Candidate"], candidates[0]["Edges"]
+    return best, edges 
+
+def tabu_search(neighbours_dict,first_solution,first_cost,maxiter,maxcandidate,maxTabu):
+	tabu_list=list()
+	best ={}
+	best["Permutation"] = first_solution
+	best["Cost"] = first_cost
+	while maxiter >0:
+		print("Iteraction ",maxiter)
+		candidates = []
+		for index_node in range(0,maxcandidate):
+			candidates.append(generate_candidate(best, tabu_list, first_solution,neighbours_dict))
+		bestCandidate, bestCandidateEdges = locateBestCandidate(candidates)
+		print("\tCandidate: ",bestCandidate.get("Permutation")," Cost: ",bestCandidate.get("Cost"))
+		print("\tCurrent Best: ", best.get("Permutation")," Cost: ",best.get("Cost"))
+		if bestCandidate["Cost"] < best["Cost"]:
+		    # set current to the best, so thatwe can continue iteration
+		    print("\tSwitching neighborhood")
+		    best = bestCandidate
+		    # update tabu list
+		    for edge in bestCandidateEdges:
+		        if len(tabu_list) < maxTabu:
+		            tabu_list.append(edge)
+		
+		print("\n\n")
+		maxiter-=1
+
+	print("Best arrange: ",best)
 
 arguments()
