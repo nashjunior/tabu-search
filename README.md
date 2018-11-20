@@ -1,6 +1,8 @@
 # tabu-search
 UECE – CCT – Curso de Bacharelado em Ciência da Computação
+
 Disciplina: Projeto e Análise de Algoritmos – 2018.1 Prof. Camila Colares
+
 3o NPC - Trabalho em Laboratório
 ## Tabu Search Metaheuristic Method implemented in python
 
