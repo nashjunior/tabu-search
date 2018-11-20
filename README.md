@@ -14,9 +14,10 @@ Clone the repository:
 If this is your first time using Github, review http://help.github.com to learn the basics.
 
 ### To run the application:
-From the command line with python3:
+From the command line with python:
 
     $ cd tabu-search
+    $ pip install -r requirements.txt
     $ python tabu_search.py --file (name of file with instances) -mi (number of interactions) -mt (number of searchs) -mc (number of candidates).
 
 
