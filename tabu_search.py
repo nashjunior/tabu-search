@@ -1,4 +1,4 @@
-import argparse, sys, platform, os, operator, collections,random,sys
+import argparse, sys, platform, os, operator, collections,random,sys,time
 import numpy as np
 
 path = os.path.dirname(os.path.abspath(__file__))
@@ -9,7 +9,9 @@ dimension = None
 edge_weight_type = None
 edge_weight_format = None
 display_data_type = None
-distances = None
+distances = list()
+start_time = None
+final_time = None
 
 def arguments():
 	parser = argparse.ArgumentParser(prog="Tabu search algorithm",usage='%(prog)s [options]')
@@ -26,7 +28,8 @@ def arguments():
 	decode_file(args.maxiter,args.maxtabu,args.maxcandidate)
 
 def decode_file(maxiter,maxTabu,maxcandidate):
-	global path, name, comment, dimension, edge_weight_type, edge_weight_format,distances
+	global path, name, comment, dimension, edge_weight_type, edge_weight_format,distances,start_time
+	start_time = time.time()
 	with open(path,'r') as file:
 		name = file.readline().strip().split()[1]
 		type_file = file.readline().strip().split()[1]
@@ -35,19 +38,16 @@ def decode_file(maxiter,maxTabu,maxcandidate):
 		dimension = file.readline().strip().split()[1]
 		edge_weight_type = file.readline().strip().split()[1]
 		edge_weight_format = file.readline().strip().split()[1]
+		i=8
 		if name[0] != 'g':
+			i=10
 			display_data_type = file.readline().strip().split()[1]
 		file.readline()
 		values = file.readline()
 		while values!='EOF\n':
 			values = values.split()
-			if type(distances)==list:
-				distances.append(list(map(int,values)))
-			else:
-				distances = list(map(int,values))
-			
-			#if (edge_weight_format=="LOWER_DIAG_ROW"):
-			distances = list(flatten(distances))
+			values= list(map(int,values))
+			distances.extend(values)
 			values = file.readline()
 
 		while 0 in distances:
@@ -76,6 +76,7 @@ def flatten(lis):
        if isinstance(item, collections.Iterable) and not isinstance(item, str):
            for x in flatten(item):
                yield x
+               print(item)
        else:        
            yield item
 
@@ -137,7 +138,6 @@ def isTabu(perm, tabuList):
 
 def stochasticTwoOptWithEdges(perm):
     result = perm[:] # make a copy
-    #print("gere")
     size = len(result)
     # select indices of two random points in the tour
     p1, p2 = random.randrange(0,size), random.randrange(0,size)
@@ -184,6 +184,7 @@ def locateBestCandidate(candidates):
     return best, edges 
 
 def tabu_search(neighbours_dict,first_solution,first_cost,maxiter,maxcandidate,maxTabu):
+	global start_time,final_time
 	tabu_list=list()
 	best ={}
 	best["Permutation"] = first_solution
@@ -207,7 +208,8 @@ def tabu_search(neighbours_dict,first_solution,first_cost,maxiter,maxcandidate,m
 		
 		print("\n\n")
 		maxiter-=1
-
+	final_time = time.time()
 	print("Best arrange: ",best)
+	print("Tempo de execução: ",final_time - start_time, " segundos")
 
 arguments()
